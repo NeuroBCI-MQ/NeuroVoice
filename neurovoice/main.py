@@ -1,43 +1,46 @@
-"""Main loop: hear → propose → select → respond."""
+"""Main loop: hear → propose → select → respond → log."""
 
-from neurovoice.proposer import propose_replies
+from neurovoice.proposer import propose_replies, MODEL
 from neurovoice.inputs.base import Choice
 from neurovoice.inputs.keyboard import KeyboardInput
+from neurovoice.logger import InteractionLogger
 
-MAX_BATCHES = 2  # after this many "none of these", switch to typing
+MAX_BATCHES = 2
 
 
-def select_reply(replies, input_mode):
-    """Cycle through replies one at a time. Return the chosen one, or None."""
+def select_reply(replies, input_mode, batch, decisions):
+    """Cycle through replies; record every decision. Return the chosen reply or None."""
     for reply in replies:
         print(f"\n  → {reply}")
         choice = input_mode.get_choice()
+        decisions.append({"batch": batch, "reply": reply, "choice": choice.value})
         if choice == Choice.YES:
             return reply
         if choice == Choice.NONE:
             return None
-        # Choice.NO: move to the next reply
-    return None  # went through all of them without a yes
+    return None
 
 
 def respond_to(heard_text, input_mode, history):
-    """Run batches of proposals until the user picks one or falls back."""
-    for batch in range(MAX_BATCHES):
+    """Return (final_reply, reply_source, decisions)."""
+    decisions = []
+    for batch in range(1, MAX_BATCHES + 1):
         replies = propose_replies(heard_text, history)
         if not replies:
             print("(No replies generated, trying again...)")
             continue
-        chosen = select_reply(replies, input_mode)
+        chosen = select_reply(replies, input_mode, batch, decisions)
         if chosen:
-            return chosen
+            return chosen, "llm", decisions
         print("\nGetting new options...")
 
-    # Fallback: spelling mode (keyboard stand-in for now)
-    return input("\nType your reply: ")
+    return input("\nType your reply: "), "typed", decisions
 
 
 def main():
     input_mode = KeyboardInput()
+    source = input("Who's the conversation partner? (self-test / friend / ai-partner): ").strip() or "self-test"
+    logger = InteractionLogger(source=source, input_mode="keyboard", model=MODEL)
     history = []
 
     print("NeuroVoice: type 'quit' to exit.")
@@ -46,12 +49,14 @@ def main():
         if heard.lower() == "quit":
             break
 
-        reply = respond_to(heard, input_mode, history)
+        reply, reply_source, decisions = respond_to(heard, input_mode, history)
         print(f"\nYOU SAY: {reply}")
 
-        # Remember the conversation for context
+        logger.log(heard, decisions, reply, reply_source)
         history.append({"role": "user", "content": f"The other person said: {heard}"})
         history.append({"role": "assistant", "content": f"The user replied: {reply}"})
+
+    print(f"\nSession saved to {logger.path}")
 
 
 if __name__ == "__main__":
