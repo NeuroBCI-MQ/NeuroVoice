@@ -5,6 +5,7 @@ from neurovoice.inputs.base import Choice
 from neurovoice.inputs.keyboard import KeyboardInput
 from neurovoice.logger import InteractionLogger
 from neurovoice.speaker import speak 
+from neurovoice.listener import listen
 
 
 MAX_BATCHES = 2
@@ -42,12 +43,26 @@ def respond_to(heard_text, input_mode, history):
 def main():
     input_mode = KeyboardInput()
     source = input("Who's the conversation partner? (self-test / friend / ai-partner): ").strip() or "self-test"
+    use_mic = input("Use microphone? (y/n): ").strip().lower() == "y"
+    if use_mic:
+        from neurovoice.listener import _get_model
+        _get_model()    
     logger = InteractionLogger(source=source, input_mode="keyboard", model=MODEL)
     history = []
 
     print("NeuroVoice: type 'quit' to exit.")
     while True:
-        heard = input("\nOther person says: ").strip()
+        if use_mic:
+            cmd = input("\n[Enter] listen  |  type 'quit' to exit: ").strip()
+            if cmd.lower() == "quit":
+                break
+            heard = listen()
+            print(f"Heard: {heard}")
+            if not heard:
+                print("(Didn't catch that, try again.)")
+                continue
+        else:
+            heard = input("\nOther person says: ").strip()
         if heard.lower() == "quit":
             break
 
