@@ -4,6 +4,8 @@ from neurovoice.proposer import propose_replies, MODEL
 from neurovoice.inputs.base import Choice
 from neurovoice.inputs.keyboard import KeyboardInput
 from neurovoice.logger import InteractionLogger
+from neurovoice.speaker import speak 
+
 
 MAX_BATCHES = 2
 
@@ -51,7 +53,7 @@ def main():
 
         reply, reply_source, decisions = respond_to(heard, input_mode, history)
         print(f"\nYOU SAY: {reply}")
-
+        speak(reply)
         logger.log(heard, decisions, reply, reply_source)
         history.append({"role": "user", "content": f"The other person said: {heard}"})
         history.append({"role": "assistant", "content": f"The user replied: {reply}"})
